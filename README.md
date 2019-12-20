@@ -1,6 +1,6 @@
-﻿=== Hotel Booking for iBooked Online ===
+# Hotel Booking for iBooked Online
 
-# Files to check:
+## Files to check:
 	- `/wp-content/plugins/motopress-hotel-booking-custom/includes/payments/gateways/stripe-gateway-custom.php`
 	- `/wp-content/plugins/motopress-hotel-booking-custom/includes/payments/gateways/stripe/stripe-api6.php`
 ## For custom plugin:
