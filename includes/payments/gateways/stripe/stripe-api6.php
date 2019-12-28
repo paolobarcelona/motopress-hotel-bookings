@@ -37,7 +37,12 @@ class StripeAPI6
     /**
      * @var string
      */
-    private $connectedAccountId;
+    private $mainStripeConnectAccountId;
+
+    /**
+     * @var string
+     */
+    private $hotelStripeConnectAccountId;
 
     /**
      * @var string
@@ -57,9 +62,12 @@ class StripeAPI6
     public function __construct($gatewaySettings)
     {
         $this->secretKey = $gatewaySettings['secret_key'] ?? '';
-        $this->connectedAccountId = $gatewaySettings['connected_stripe_account_id'] ?? '';
-        $this->commissionType = $gatewaySettings['commission_type'] ?? StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE;
-        $this->commissionRate = $gatewaySettings['commission_rate'] ?? StripeGatewayCustom::COMMISSION_DEFAULT_RATE;
+        $this->mainStripeConnectAccountId = $gatewaySettings['main_stripe_connect_account_id'] ?? '';
+        $this->hotelStripeConnectAccountId = $gatewaySettings['hotel_stripe_connect_account_id'] ?? '';
+        $this->commissionType = $gatewaySettings['commission_type'] 
+            ?? StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE;
+        $this->commissionRate = $gatewaySettings['commission_rate'] 
+            ?? StripeGatewayCustom::COMMISSION_DEFAULT_RATE;
 
         $this->registerLoader();
     }
@@ -209,11 +217,11 @@ class StripeAPI6
         Stripe::setApiKey($this->secretKey);
         Stripe::setApiVersion(self::API_VERSION);
         
-        $commission = (float)$this->getCommission(
-            (float)($payment->getAmount() ?? ($requestArgs['amount'] ?? 0.00))
-        );
+        $commission = $this->convertToSmallestUnit($this->getMainTransfer(
+            (float)($booking->getTotalPriceWithoutProcessingFee() ?? ($requestArgs['amount'] ?? 0.00))
+        ), $requestArgs['currency']);
 
-        $requestArgs['destination'] = $this->connectedAccountId;
+        $requestArgs['destination'] = $this->mainStripeConnectAccountId;
         $requestArgs['amount'] = $commission;
         $requestArgs['source_type'] = 'card';
         $requestArgs['currency'] = \strtolower($requestArgs['currency'] ?? '');
@@ -240,7 +248,57 @@ class StripeAPI6
         }
 
         return $payment;
-    }    
+    }  
+
+    /**
+     * @param \MPHB\Entities\Booking $booking
+     * @param \MPHB\Entities\Payment $payment
+     * @param mixed[] $requestArgs
+     * 
+     * @return \MPHB\Entities\Payment
+     */
+    public function createHotelTransfer (
+        Booking $booking, 
+        Payment $payment,
+        array $requestArgs
+    ): Payment {
+        Stripe::setApiKey($this->secretKey);
+        Stripe::setApiVersion(self::API_VERSION);
+
+        $requestArgs['currency'] = \strtolower($requestArgs['currency'] ?? '');
+        
+        $transferAmount = $this->convertToSmallestUnit((float)$this->getHotelTransfer(
+            (float)($payment->getAmount() ?? ($requestArgs['amount'] ?? 0.00))
+        ), $requestArgs['currency']);
+
+        $requestArgs['destination'] = $this->hotelStripeConnectAccountId;
+        $requestArgs['amount'] = $transferAmount;
+        $requestArgs['source_type'] = 'card';
+        
+
+        $transfer = $this->createTransfer($requestArgs);
+
+        if ( isset($transfer['error_transfer']) === true ) {
+            // translators: %1$s - Stripe Charge ID; %2$s - payment price
+            $payment->addLog(\sprintf(
+                'Can\'t transfer the hotel payment from booking reference # %s. <br>
+                Actual message: %s<br>
+                Payload: %s',
+                $booking->getId(),
+                (string)$transfer['error_transfer'],
+                \json_encode($requestArgs)
+            ));
+
+        } elseif ( $transfer instanceof StripeTransfer ) {
+            $payment->addLog(\sprintf(
+                'Hotel Transfer for booking reference # %s have been transferred correctly. Transfer ID: "%s". Destination Payment: "%s".',
+                $booking->getId(), 
+                $transfer->id
+            )); 
+        }
+
+        return $payment;
+    }  
 
     /**
      * @param float $amount
@@ -258,10 +316,18 @@ class StripeAPI6
         Stripe::setApiVersion(self::API_VERSION);
 
         try {
+            $processingFee = $this->getProcessingFeeBasedOnAmount($amount);
+
+            $amountWithoutFee = ($amount - $processingFee);
+
+            $transferGroup = $this->generateRandomString();
+            
             $requestArgs = array(
                 'amount'               => $this->convertToSmallestUnit($amount, $currency),
-                'currency'             => strtolower($currency),
-                'payment_method_types' => array('card')
+                'currency'             => \strtolower($currency),
+                'payment_method_types' => array('card'),
+                // 'application_fee_amount' => $this->convertToSmallestUnit($processingFee, $currency),
+                'transfer_group' => $transferGroup
             );
 
             if (!empty($description)) {
@@ -270,6 +336,38 @@ class StripeAPI6
 
             // See details in https://stripe.com/docs/api/payment_intents/create
             $paymentIntent = PaymentIntent::create($requestArgs);
+            
+            $this->createTransfer([
+                'amount' => $this->convertToSmallestUnit(
+                    $this->getHotelTransfer($amountWithoutFee),
+                    $currency
+                ),
+                'currency' => \strtolower($currency),
+                'destination' => $this->hotelStripeConnectAccountId,
+                'metadata' => [
+                    'payment_intent_id' => $paymentIntent->id,
+                    'total_amount' => $paymentIntent->amount,
+                    'customer' => $paymentIntent->customer,
+                    'payment_description' => $paymentIntent->description
+                ],
+                'transfer_group' => $transferGroup
+            ]);
+
+            $this->createTransfer([
+                'amount' => $this->convertToSmallestUnit(
+                    $this->getMainTransfer($amountWithoutFee),
+                    $currency
+                ),
+                'currency' => \strtolower($currency),
+                'destination' => $this->mainStripeConnectAccountId,
+                'metadata' => [
+                    'payment_intent_id' => $paymentIntent->id,
+                    'total_amount' => $paymentIntent->amount,
+                    'customer' => $paymentIntent->customer,
+                    'payment_description' => $paymentIntent->description
+                ],
+                'transfer_group' => $transferGroup
+            ]);
 
             return $paymentIntent;
         } catch (\Exception $e) {
@@ -312,13 +410,13 @@ class StripeAPI6
     }
 
     /**
-     * Calculate commission.
+     * Calculate main transfer.
      *
      * @param float $amount
      * 
      * @return float $commission
      */
-    private function getCommission (float $amount): float
+    private function getMainTransfer (float $amount): float
     {
         $commissionRate = $this->commissionRate;
 
@@ -326,10 +424,74 @@ class StripeAPI6
         if ($this->commissionType === StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE) {
             $commissionRate /= 100;
             
-            return (int)(($amount * (float)$commissionRate) * 100);
+            return (int)($amount * (float)$commissionRate);
 
         }
 
-        return (int)(($amount - ($amount - $commissionRate)) * 100);
-    } 
+        return (int)($amount - ($amount - $commissionRate));
+    }
+
+    /**
+     * Calculate for hotel transfer.
+     *
+     * @param float $amount
+     * 
+     * @return float $commission
+     */
+    private function getHotelTransfer (float $amount): float
+    {
+        $commissionRate = $this->commissionRate;
+
+        // Percentage?
+        if ($this->commissionType === StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE) {
+            $commissionRate /= 100;
+            
+            $commission = (int)($amount * (float)$commissionRate);
+
+            return $amount - $commission;
+        }
+
+        return $amount - (int)($amount - ($amount - $commissionRate));
+    }
+
+    /**
+     * Generate random string.
+     * 
+     * @return string
+     */
+    private function generateRandomString(): string
+    {
+        return \substr(str_shuffle('0123456789bcdfghjklmnpqrstvwxyz'), 0, 10);        
+    }
+
+    /**
+     * Get processing fees
+     * 
+     * @param float $amount
+     *
+     * @return float
+     */    
+    private function getProcessingFeeBasedOnAmount(float $amount): float
+    {
+		$fees = MPHB()->settings()->taxesAndFees()->getProcessingFees();
+
+		$processingFee = 0;
+
+		foreach ( $fees as $fee ) {
+			$feePrice = 0;
+
+			switch ( $fee['type'] ) {
+				case 'exact':
+					$feePrice = $fee['amount'];
+					break;
+				case 'percentage':
+					$feePrice = $amount / 100 * $fee['amount'];
+					break;
+            }
+            
+			$processingFee += $feePrice;
+		}
+
+		return (float)$processingFee;
+	}
 }

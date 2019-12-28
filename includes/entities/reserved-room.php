@@ -353,15 +353,21 @@ class ReservedRoom {
         // will use the "total" value later to add "coupon" data to breakdown
 		$total = $roomBreakdown['total'] + $servicesBreakdown['total'] + $feesBreakdown['total'] +
 		         $taxesBreakdown['room']['total'] + $taxesBreakdown['services']['total'] +
-		         $taxesBreakdown['fees']['total'];
+				 $taxesBreakdown['fees']['total'];
+				 
+		$processingFees = $this->getProcessingFees($total);
 
+		$totalWithProcessingFee = $total + $processingFees['total'];
+				 
 		$priceBreakdown = array(
 			'room'           => $roomBreakdown,
 			'services'       => $servicesBreakdown,
 			'fees'           => $feesBreakdown,
 			'taxes'          => $taxesBreakdown,
-			'total'          => $total,
-			'discount_total' => $total - $roomBreakdown['discount'],
+			'processing_fees' => (array)$processingFees,
+			'total'          => $totalWithProcessingFee,
+			'total_without_processing_fees' => $total,
+			'discount_total' => $totalWithProcessingFee - $roomBreakdown['discount'],
 		);
 
 		return $priceBreakdown;
@@ -408,6 +414,43 @@ class ReservedRoom {
 			);
 			$breakdown['total'] += $feePrice;
 		}
+
+		return $breakdown;
+	}
+
+	private function getProcessingFees($roomPrice)
+	{
+		$roomTypeId	 = $this->getRoomTypeId();
+
+		$fees = MPHB()->settings()->taxesAndFees()->getProcessingFees( $roomTypeId );
+
+		$breakdown = array(
+			'list'	 => array(),
+			'total'	 => 0
+		);
+
+		foreach ( $fees as $fee ) {
+			$feePrice = 0;
+
+			switch ( $fee['type'] ) {
+				case 'exact':
+					$feePrice = $fee['amount'];
+					break;
+				case 'percentage':
+					$feePrice = $roomPrice * ($fee['amount'] / 100);
+					break;
+			}
+
+			$breakdown['list'][] = array(
+                'label' => $fee['label'],
+				'price' => $feePrice
+			);
+
+			$breakdown['total'] += $feePrice;
+		}
+
+		// parse
+		$breakdown['total'] = (float)$breakdown['total'];
 
 		return $breakdown;
 	}

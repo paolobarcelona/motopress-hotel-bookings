@@ -46,6 +46,9 @@ class TaxesAndFeesMenuPage extends AbstractMenuPage {
 				<br/><hr/>
 
 				<?php echo $this->fields['mphb_fee_taxes']->render(); ?>
+				<br/><hr/>
+
+				<?php echo $this->fields['mphb_processing_fees']->render(); ?>
 
 				<p class="submit">
 					<input name="save" type="submit" class="button button-primary" id="publish" value="<?php _e( 'Save Changes', 'motopress-hotel-booking' ); ?>" />
@@ -293,6 +296,58 @@ class TaxesAndFeesMenuPage extends AbstractMenuPage {
 				) )
 			)
 		), get_option( 'mphb_fee_taxes', array() ) );
+
+		$this->fields['mphb_processing_fees'] = FieldFactory::create( 'mphb_processing_fees', array(
+			'type'			 => 'rules-list',
+			'label'			 => __( 'Processing Fees', 'motopress-hotel-booking' ),
+			'empty_label'	 => __( 'No fees have been created yet.', 'motopress-hotel-booking' ),
+			'add_label'		 => __( 'Add new', 'motopress-hotel-booking' ),
+			'default'		 => array(),
+			'fields'		 => array(
+				FieldFactory::create( 'label', array(
+					'type'					 => 'text',
+					'label'					 => __( 'Label', 'motopress-hotel-booking' ),
+					'default'				 => __( 'New Fee', 'motopress-hotel-booking' ),
+					'size'					 => 'wide'
+				) ),
+				FieldFactory::create( 'type', array(
+					'type'					 => 'select',
+					'label'					 => __( 'Type', 'motopress-hotel-booking' ),
+					'default'				 => 'percentage',
+					'list'					 => array(
+						'exact'			 => __( 'Exact Amount', 'motopress-hotel-booking' ),
+						'percentage'			 => __( 'Percentage (%)', 'motopress-hotel-booking' )
+					)
+				) ),
+				FieldFactory::create( 'amount', array(
+					'type'					 => 'amount',
+					'label'					 => __( 'Amount', 'motopress-hotel-booking'),
+					'size'					 => 'wide',
+					'default'				 => 0,
+					'default_render_type'	 => 'percent',
+					'dependency'			 => array(
+						'input'					 => 'type',
+						'single_inputs_on'		 => array( 'percentage' ),
+						'multiple_inputs_on'	 => array()
+					)
+				) ),
+				FieldFactory::create( 'limit', array(
+					'type'					 => 'number',
+					'label'					 => __( 'Limit', 'motopress-hotel-booking' ),
+					'inner_label'			 => __( 'days', 'motopress-hotel-booking' ),
+					'min'					 => 0,
+					'disabled'				 => true,
+					'classes'				 => 'mphb-keep-disabled'
+				) ),
+				FieldFactory::create( 'rooms', array(
+					'type'			 => 'multiple-checkbox',
+					'label'			 => __( 'Accommodations', 'motopress-hotel-booking' ),
+					'all_value'		 => 0,
+					'default'		 => array( 0 ),
+					'list'			 => MPHB()->getRoomTypePersistence()->getIdTitleList( array(), array( 0 => __( 'All', 'motopress-hotel-booking' ) ) )
+				) )
+			)
+		), get_option( 'mphb_processing_fees', array() ) );
 	}
 
 	protected function getMenuTitle(){

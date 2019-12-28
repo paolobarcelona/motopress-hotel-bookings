@@ -78,10 +78,15 @@ class StripeGatewayCustom extends Gateway
      */
     protected $endpointSecret = '';
 
-    /** 
-     * @var string 
+    /**
+     * @var string
      */
-    protected $connectedAccountId = '';
+    protected $mainStripeConnectAccountId;
+
+    /**
+     * @var string
+     */
+    protected $hotelStripeConnectAccountId;
 
     /** 
      * @var string[] "card", "ideal", "sepa_debit" etc. 
@@ -130,7 +135,8 @@ class StripeGatewayCustom extends Gateway
 
         $this->api = new Stripe\StripeAPI6(array(
             'secret_key' => $this->secretKey,
-            'connected_stripe_account_id' => $this->connectedAccountId,
+            'main_stripe_connect_account_id' => $this->mainStripeConnectAccountId,
+            'hotel_stripe_connect_account_id' => $this->hotelStripeConnectAccountId,
             'commission_type' => $this->commissionType,
             'commission_rate' => $this->commissionRate
         ));
@@ -170,7 +176,8 @@ class StripeGatewayCustom extends Gateway
             'sandbox'         => $this->isSandbox,
             'secret_key'      => $this->secretKey,
             'endpoint_secret' => $this->endpointSecret,
-            'connected_stripe_account_id' => $this->connectedAccountId,
+            'main_stripe_connect_account_id' => $this->mainStripeConnectAccountId,
+            'hotel_stripe_connect_account_id' => $this->hotelStripeConnectAccountId,            
             'commission_type' => $this->commissionType,
             'commission_rate' => $this->commissionRate
         );
@@ -186,7 +193,8 @@ class StripeGatewayCustom extends Gateway
         $this->publicKey      = $this->getOption('public_key');
         $this->secretKey      = $this->getOption('secret_key');
         $this->endpointSecret = $this->getOption('endpoint_secret');
-        $this->connectedAccountId = $this->getOption('connected_stripe_account_id');
+        $this->mainStripeConnectAccountId = $this->getOption('main_stripe_connect_account_id');
+        $this->hotelStripeConnectAccountId = $this->getOption('hotel_stripe_connect_account_id');
         $this->paymentMethods = $this->getOption('payment_methods');
         $this->locale         = $this->getOption('locale');
         $this->commissionRate = $this->getOption('commission_rate');
@@ -237,7 +245,8 @@ class StripeGatewayCustom extends Gateway
             'public_key'      => '',
             'secret_key'      => '',
             'endpoint_secret' => '',
-            'connected_stripe_account_id' => '',
+            'main_stripe_connect_account_id' => '',
+            'hotel_stripe_connect_account_id' => '',            
             'commission_type' => self::COMMISSION_TYPE_PERCENTAGE,
             'commission_rate' => self::COMMISSION_DEFAULT_RATE,
             'payment_methods' => array(),
@@ -302,10 +311,15 @@ class StripeGatewayCustom extends Gateway
 				'description'    => '<a href="https://stripe.com/docs/webhooks/setup#configure-webhook-settings" target="_blank">Setting Up Webhooks</a>',
                 'default'        => $this->getDefaultOption('endpoint_secret')
             )),
-            Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_connected_stripe_account_id", array(
+            Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_hotel_stripe_connect_account_id", array(
                 'type'           => 'text',
-                'label'          => __('Connected Stripe Account ID', 'motopress-hotel-booking'),
-                'default'        => $this->getDefaultOption('connected_stripe_account_id')
+                'label'          => __('Hotel Stripe Connect Account ID', 'motopress-hotel-booking'),
+                'default'        => $this->getDefaultOption('hotel_stripe_connect_account_id')
+            )),
+            Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_main_stripe_connect_account_id", array(
+                'type'           => 'text',
+                'label'          => __('Main Connect Account ID', 'motopress-hotel-booking'),
+                'default'        => $this->getDefaultOption('main_stripe_connect_account_id')
             )),
             Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_commission_type", array(
                 'type'           => 'select',
@@ -458,37 +472,6 @@ class StripeGatewayCustom extends Gateway
 
                 /** @var null|\MPHB\Entities\Booking $booking */
                 $booking = MPHB()->getBookingRepository()->findById($payment->getBookingId());
-
-                // CUSTOM COMMISSION:
-                $bookingDescription = $this->generateItemName($booking) ?? '';
-
-                $commissionDesc = $bookingDescription ?
-                    \sprintf('Commission for %s', $bookingDescription) : 
-                    \sprintf(
-                        'Commission for booking %s %s on %s', 
-                        $booking->getCustomer()->getFirstName() ?? '',
-                        $booking->getCustomer()->getLastName() ?? '',
-                        $booking->getCheckInDate() 
-                    );
-
-                $transferArgs = [
-                    'currency'    => (string)$payment->getCurrency(),
-                    'description' => $commissionDesc,
-                    'metadata'    => [
-                        'booking_id' => $booking->getId(),
-                        'total_price' => $booking->getTotalPrice(),
-                        'status' => $booking->getStatus(),
-                        'payment_intent_id' => $paymentIntent->id
-                    ]
-                ];
-
-                $this->api->createCommission(
-                    $booking,
-                    $payment,
-                    $transferArgs
-                );
-                // END CUSTOM COMMISSION
-
             } else { // "processing"
                 // translators: %s - Stripe PaymentIntent ID
                 $payment->addLog(sprintf(__('Payment for PaymentIntent %s is processing.', 'motopress-hotel-booking'), $paymentIntentId));

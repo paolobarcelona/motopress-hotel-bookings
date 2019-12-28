@@ -58,6 +58,10 @@ class TaxesAndFeesSettings {
 		return $this->getTaxes( 'mphb_fee_taxes', $typeId );
 	}
 
+	public function getProcessingFees( $typeId = 0 ){
+		return $this->getTaxes( 'mphb_processing_fees', $typeId );
+	}
+
 	private function filterByTypeId( $rules, $filterId ){
 		$filteredRules = array();
 

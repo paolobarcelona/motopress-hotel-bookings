@@ -41,10 +41,14 @@ class Booking {
 	private $note;
 
 	/**
-	 *
 	 * @var float
 	 */
 	private $totalPrice = 0.0;
+
+	/**
+	 * @var float
+	 */
+	private $totalPriceWithoutProcessFee = 0.0;
 
 	/**
 	 *
@@ -159,6 +163,7 @@ class Booking {
 	 * @param float			 $atts['total_price']
 	 * @param string		 $atts['note']
 	 * @param string		 $atts['status']
+	 * @param float 		 $atts['total_without_processing_fees]
 	 * @param int			 $atts['coupon_id'] Optional.
 	 * @param string		 $atts['ical_prodid'] Optional.
 	 * @param string		 $atts['ical_summary'] Optional.
@@ -197,6 +202,12 @@ class Booking {
 
 		if ( isset( $atts['total_price'] ) ) {
 			$this->totalPrice = $atts['total_price'];
+		} else {
+			$this->updateTotal();
+		}
+
+		if ( isset( $atts['total_without_processing_fees'] ) ) {
+			$this->totalPriceWithoutProcessFee = $atts['total_without_processing_fees'];
 		} else {
 			$this->updateTotal();
 		}
@@ -252,6 +263,7 @@ class Booking {
 
 	public function updateTotal(){
 		$this->totalPrice = $this->calcPrice();
+		$this->totalPriceWithoutProcessFee = $this->calcPriceNoProcessingFee();
 	}
 
     /**
@@ -302,7 +314,14 @@ class Booking {
         // MPHB\Entities\array_column()" on PHP 5.3
         $total = array_reduce($roomsBreakdown, function ($total, $breakdown) {
             return $total + $breakdown['discount_total'];
-        }, 0.0);
+		}, 0.0);
+		
+		$totalWithoutProcessingFees = array_reduce($roomsBreakdown, function (
+				$totalWithoutProcessingFees, 
+				$breakdown
+			) {
+            return $totalWithoutProcessingFees + $breakdown['total_without_processing_fees'];
+		}, 0.0);
 
 		// Calc total discount
 		$discount = 0.0;
@@ -314,7 +333,8 @@ class Booking {
 
 		$priceBreakdown = array(
 			'rooms'	 => $roomsBreakdown,
-			'total'	 => apply_filters( 'mphb_booking_calculate_total_price', $total, $this )
+			'total'	 => apply_filters( 'mphb_booking_calculate_total_price', $total, $this ),
+			'total_without_processing_fees' => (float)$totalWithoutProcessingFees
 		);
 
 		if (
@@ -348,6 +368,21 @@ class Booking {
 
 		$breakdown = $this->getPriceBreakdown();
 		return $breakdown['total'];
+
+	}
+
+	/**
+	 *
+	 * @return float
+	 */
+	public function calcPriceNoProcessingFee(){
+
+		if ( is_null( $this->checkInDate ) || is_null( $this->checkOutDate ) ) {
+			return 0.0;
+		}
+
+		$breakdown = $this->getPriceBreakdown();
+		return $breakdown['total_without_processing_fees'];
 
 	}
 
@@ -483,6 +518,22 @@ class Booking {
 	 */
 	public function getTotalPrice(){
 		return $this->totalPrice;
+	}
+
+	/**
+	 *
+	 * @return float
+	 */
+	public function getTotalPriceWithoutProcessingFee(){
+		return $this->totalPriceWithoutProcessFee;
+	}
+
+	/**
+	 *
+	 * @return float
+	 */
+	public function getProcessingFee(){
+		return $this->getTotalPrice() - $this->getTotalPriceWithoutProcessingFee();
 	}
 
 	/**
