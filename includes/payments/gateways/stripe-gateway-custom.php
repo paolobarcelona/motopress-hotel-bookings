@@ -475,13 +475,10 @@ class StripeGatewayCustom extends Gateway
                     'currency'    => (string)$payment->getCurrency(),
                     'description' => $commissionDesc,
                     'metadata'    => [
-                        'id' => $booking->getId(),
+                        'booking_id' => $booking->getId(),
                         'total_price' => $booking->getTotalPrice(),
                         'status' => $booking->getStatus(),
-                        'coupon' => $booking->getCouponId(),
-                        'checkin_date' => $booking->getCheckInDate(),
-                        'checkout_date' => $booking->getCheckOutDate(),
-                        'payment_intent' => \json_encode((array)$paymentIntent)
+                        'payment_intent_id' => $paymentIntent->id
                     ]
                 ];
 
