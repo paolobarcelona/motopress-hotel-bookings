@@ -6,10 +6,7 @@ use Exception;
 use Stripe\PaymentIntent;
 use Stripe\Source;
 use Stripe\Stripe;
-use Stripe\Charge;
 use Stripe\Transfer as StripeTransfer;
-use MPHB\Entities\Booking;
-use MPHB\Entities\Payment;
 use MPHB\Payments\Gateways\StripeGatewayCustom;
 
 class StripeAPI6
@@ -203,104 +200,6 @@ class StripeAPI6
     }
 
     /**
-     * @param \MPHB\Entities\Booking $booking
-     * @param \MPHB\Entities\Payment $payment
-     * @param mixed[] $requestArgs
-     * 
-     * @return \MPHB\Entities\Payment
-     */
-    public function createCommission (
-        Booking $booking, 
-        Payment $payment,
-        array $requestArgs
-    ): Payment {
-        Stripe::setApiKey($this->secretKey);
-        Stripe::setApiVersion(self::API_VERSION);
-        
-        $commission = $this->convertToSmallestUnit($this->getMainTransfer(
-            (float)($booking->getTotalPriceWithoutProcessingFee() ?? ($requestArgs['amount'] ?? 0.00))
-        ), $requestArgs['currency']);
-
-        $requestArgs['destination'] = $this->mainStripeConnectAccountId;
-        $requestArgs['amount'] = $commission;
-        $requestArgs['source_type'] = 'card';
-        $requestArgs['currency'] = \strtolower($requestArgs['currency'] ?? '');
-
-        $transfer = $this->createTransfer($requestArgs);
-
-        if ( isset($transfer['error_transfer']) === true ) {
-            // translators: %1$s - Stripe Charge ID; %2$s - payment price
-            $payment->addLog(\sprintf(
-                'Can\'t transfer the commission from booking reference # %s. <br>
-                Actual message: %s<br>
-                Payload: %s',
-                $booking->getId(),
-                (string)$transfer['error_transfer'],
-                \json_encode($requestArgs)
-            ));
-
-        } elseif ( $transfer instanceof StripeTransfer ) {
-            $payment->addLog(\sprintf(
-                'Commission for booking reference # %s have been transferred correctly. Transfer ID: "%s". Destination Payment: "%s".',
-                $booking->getId(), 
-                $transfer->id
-            )); 
-        }
-
-        return $payment;
-    }  
-
-    /**
-     * @param \MPHB\Entities\Booking $booking
-     * @param \MPHB\Entities\Payment $payment
-     * @param mixed[] $requestArgs
-     * 
-     * @return \MPHB\Entities\Payment
-     */
-    public function createHotelTransfer (
-        Booking $booking, 
-        Payment $payment,
-        array $requestArgs
-    ): Payment {
-        Stripe::setApiKey($this->secretKey);
-        Stripe::setApiVersion(self::API_VERSION);
-
-        $requestArgs['currency'] = \strtolower($requestArgs['currency'] ?? '');
-        
-        $transferAmount = $this->convertToSmallestUnit((float)$this->getHotelTransfer(
-            (float)($payment->getAmount() ?? ($requestArgs['amount'] ?? 0.00))
-        ), $requestArgs['currency']);
-
-        $requestArgs['destination'] = $this->hotelStripeConnectAccountId;
-        $requestArgs['amount'] = $transferAmount;
-        $requestArgs['source_type'] = 'card';
-        
-
-        $transfer = $this->createTransfer($requestArgs);
-
-        if ( isset($transfer['error_transfer']) === true ) {
-            // translators: %1$s - Stripe Charge ID; %2$s - payment price
-            $payment->addLog(\sprintf(
-                'Can\'t transfer the hotel payment from booking reference # %s. <br>
-                Actual message: %s<br>
-                Payload: %s',
-                $booking->getId(),
-                (string)$transfer['error_transfer'],
-                \json_encode($requestArgs)
-            ));
-
-        } elseif ( $transfer instanceof StripeTransfer ) {
-            $payment->addLog(\sprintf(
-                'Hotel Transfer for booking reference # %s have been transferred correctly. Transfer ID: "%s". Destination Payment: "%s".',
-                $booking->getId(), 
-                $transfer->id
-            )); 
-        }
-
-        return $payment;
-    }  
-
-    /**
      * @param float $amount
      * @param string $description
      * @param string $currency
@@ -424,11 +323,11 @@ class StripeAPI6
         if ($this->commissionType === StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE) {
             $commissionRate /= 100;
             
-            return (int)($amount * (float)$commissionRate);
+            return (float)($amount * (float)$commissionRate);
 
         }
 
-        return (int)($amount - ($amount - $commissionRate));
+        return (float)($amount - ($amount - $commissionRate));
     }
 
     /**
@@ -446,12 +345,12 @@ class StripeAPI6
         if ($this->commissionType === StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE) {
             $commissionRate /= 100;
             
-            $commission = (int)($amount * (float)$commissionRate);
+            $commission = (float)($amount * (float)$commissionRate);
 
             return $amount - $commission;
         }
 
-        return $amount - (int)($amount - ($amount - $commissionRate));
+        return $amount - (float)($amount - ($amount - $commissionRate));
     }
 
     /**
