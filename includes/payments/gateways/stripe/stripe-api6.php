@@ -34,12 +34,7 @@ class StripeAPI6
     /**
      * @var string
      */
-    private $mainStripeConnectAccountId;
-
-    /**
-     * @var string
-     */
-    private $hotelStripeConnectAccountId;
+    private $stripeConnectAccountId;
 
     /**
      * @var string
@@ -59,8 +54,7 @@ class StripeAPI6
     public function __construct($gatewaySettings)
     {
         $this->secretKey = $gatewaySettings['secret_key'] ?? '';
-        $this->mainStripeConnectAccountId = $gatewaySettings['main_stripe_connect_account_id'] ?? '';
-        $this->hotelStripeConnectAccountId = $gatewaySettings['hotel_stripe_connect_account_id'] ?? '';
+        $this->stripeConnectAccountId = $gatewaySettings['stripe_connect_account_id'] ?? '';
         $this->commissionType = $gatewaySettings['commission_type'] 
             ?? StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE;
         $this->commissionRate = $gatewaySettings['commission_rate'] 
@@ -215,9 +209,7 @@ class StripeAPI6
         Stripe::setApiVersion(self::API_VERSION);
 
         try {
-            $processingFee = $this->getProcessingFeeBasedOnAmount($amount);
-
-            $amountWithoutFee = ($amount - $processingFee);
+            $amountWithoutFee = $amount - $this->getProcessingFeeBasedOnAmount($amount);
 
             $transferGroup = $this->generateRandomString();
             
@@ -225,7 +217,6 @@ class StripeAPI6
                 'amount'               => $this->convertToSmallestUnit($amount, $currency),
                 'currency'             => \strtolower($currency),
                 'payment_method_types' => array('card'),
-                // 'application_fee_amount' => $this->convertToSmallestUnit($processingFee, $currency),
                 'transfer_group' => $transferGroup
             );
 
@@ -238,27 +229,11 @@ class StripeAPI6
             
             $this->createTransfer([
                 'amount' => $this->convertToSmallestUnit(
-                    $this->getHotelTransfer($amountWithoutFee),
+                    $this->getTransferAmount($amountWithoutFee),
                     $currency
                 ),
                 'currency' => \strtolower($currency),
-                'destination' => $this->hotelStripeConnectAccountId,
-                'metadata' => [
-                    'payment_intent_id' => $paymentIntent->id,
-                    'total_amount' => $paymentIntent->amount,
-                    'customer' => $paymentIntent->customer,
-                    'payment_description' => $paymentIntent->description
-                ],
-                'transfer_group' => $transferGroup
-            ]);
-
-            $this->createTransfer([
-                'amount' => $this->convertToSmallestUnit(
-                    $this->getMainTransfer($amountWithoutFee),
-                    $currency
-                ),
-                'currency' => \strtolower($currency),
-                'destination' => $this->mainStripeConnectAccountId,
+                'destination' => $this->stripeConnectAccountId,
                 'metadata' => [
                     'payment_intent_id' => $paymentIntent->id,
                     'total_amount' => $paymentIntent->amount,
@@ -309,13 +284,13 @@ class StripeAPI6
     }
 
     /**
-     * Calculate main transfer.
+     * Calculate transfer amount.
      *
      * @param float $amount
      * 
      * @return float $commission
      */
-    private function getMainTransfer (float $amount): float
+    private function getTransferAmount (float $amount): float
     {
         $commissionRate = $this->commissionRate;
 
@@ -328,29 +303,6 @@ class StripeAPI6
         }
 
         return (float)($amount - ($amount - $commissionRate));
-    }
-
-    /**
-     * Calculate for hotel transfer.
-     *
-     * @param float $amount
-     * 
-     * @return float $commission
-     */
-    private function getHotelTransfer (float $amount): float
-    {
-        $commissionRate = $this->commissionRate;
-
-        // Percentage?
-        if ($this->commissionType === StripeGatewayCustom::COMMISSION_TYPE_PERCENTAGE) {
-            $commissionRate /= 100;
-            
-            $commission = (float)($amount * (float)$commissionRate);
-
-            return $amount - $commission;
-        }
-
-        return $amount - (float)($amount - ($amount - $commissionRate));
     }
 
     /**

@@ -218,7 +218,8 @@ class BookingView {
 								<?php } ?>
 							<?php } ?>
 
-							<?php if (isset($roomBreakdown['processing_fees']) === true && !empty($roomBreakdown['processing_fees']) === true) { ?>
+							<?php if (isset($roomBreakdown['processing_fees']) === true 
+								&& empty($roomBreakdown['processing_fees']['list']) === false) { ?>
 								<tr class="<?php echo esc_attr("{$foldedClass} mphb-price-breakdown-fees"); ?>">
 									<th colspan="<?php echo ( $useThreeColumns ? 2 : 1 ); ?>"><?php _e( 'Processing Fees', 'motopress-hotel-booking' ); ?></th>
 									<th class="mphb-table-price-column"><?php _e( 'Amount', 'motopress-hotel-booking' ); ?></th>
@@ -228,12 +229,11 @@ class BookingView {
 										<td colspan="<?php echo ( $useThreeColumns ? 2 : 1 ); ?>"><?php echo $processingFee['label']; ?></td>
 										<td class="mphb-table-price-column"><?php echo mphb_format_price( $processingFee['price'] ); ?></td>
 									</tr>
-								<?php } ?>
 								<tr class="<?php echo esc_attr("{$foldedClass} mphb-price-breakdown-fees-subtotal"); ?>">
 									<th colspan="<?php echo ( $useThreeColumns ? 2 : 1 ); ?>"><?php _e( 'Processing Fees Subtotal', 'motopress-hotel-booking' ); ?></th>
 									<th class="mphb-table-price-column"><?php echo mphb_format_price( $roomBreakdown['processing_fees']['total'] ); ?></th>
 								</tr>
-
+							<?php } ?>
 								<?php if ( isset( $roomBreakdown['taxes']['fees'] ) && !empty( $roomBreakdown['taxes']['fees']['list'] ) ) { ?>
 									<tr class="<?php echo esc_attr("{$foldedClass} mphb-price-breakdown-fee-taxes"); ?>">
 										<th colspan="<?php echo ( $useThreeColumns ? 2 : 1 ); ?>"><?php _e( 'Fee Taxes', 'motopress-hotel-booking' ); ?></th>
