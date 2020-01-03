@@ -329,7 +329,7 @@ MPHB.post = function (action, data, callbacks)
             url: MPHB._data.ajaxUrl,
             type: 'POST',
             dataType: 'json',
-            data: data
+			data: data
         },
         callbacks
     );
@@ -1830,7 +1830,8 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
         defaultCountry: '',
         paymentDescription: 'Accommodation(s) reservation',
         statementDescriptor: 'Hotel Booking',
-        fullAddressRequired: false,
+		fullAddressRequired: false,
+		stripeAccount: '',
 
         i18n: {},
         style: {},
@@ -1858,7 +1859,7 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
             this._super(args); // initSettings()
 
             // Docs: https://stripe.com/docs/stripe-js/reference#stripe-elements
-            this.api          = Stripe(this.publicKey);
+			this.api          = Stripe(this.publicKey, { stripeAccount: this.stripeAccount });
             this.elements     = this.api.elements({locale: this.locale});
             this.cardControl  = this.elements.create('card', {style: this.style, hidePostalCode: this.fullAddressRequired});
             this.idealControl = this.elements.create('idealBank', {style: this.style});
@@ -1871,8 +1872,8 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
 
         initSettings: function (settings) {
             this._super(settings);
-
-            this.publicKey           = settings.publicKey;
+			this.publicKey           = settings.publicKey;
+			this.stripeAccount		 = settings.stripeAccount;
             this.locale              = settings.locale;
             this.currency            = settings.currency;
             this.successUrl          = settings.successUrl;
@@ -1976,10 +1977,11 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
             this.setCustomer(customer);
 
             if (this.payments.currentPayment == 'card') {
-                return this.createPaymentIntent(amount)
+                data = this.createPaymentIntent(amount)
                     .then(this.createCardPayment.bind(this))
                     .then(this.handleStripeErrors.bind(this))
-                    .then(this.completeCardPayment.bind(this));
+					.then(this.completeCardPayment.bind(this));
+				return data;
             } else {
                 return this.createSource(amount)
                     .then(this.handleStripeErrors.bind(this))
@@ -2019,7 +2021,7 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
                                     var paymentIntent = {
                                         id:            response.data.id,
                                         client_secret: response.data.client_secret,
-                                        object:        'payment_intent'
+										object:        'payment_intent'
                                     };
 
                                     resolve(paymentIntent);
@@ -2036,7 +2038,7 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
                             self.showError(self.undefinedError);
                             reject(new Error(self.undefinedError));
                         }
-                    }
+					},
                 ); // MPHB.post()
 
             }); // return new Promise()
@@ -2137,13 +2139,15 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
         },
 
         completeCardPayment: function (paymentIntent) {
+
             if (paymentIntent.status == 'succeeded' || paymentIntent.status == 'processing') {
                 this.saveToCheckout('payment_method', this.payments.currentPayment);
-                this.saveToCheckout('payment_intent_id', paymentIntent.id);
+				this.saveToCheckout('payment_intent_id', paymentIntent.id);
+				this.saveToCheckout('payment_intent_status', paymentIntent.status);
 
                 return true; // Can submit
 
-            } else {
+            } else {				
                 this.showError(this.undefinedError);
                 throw new Error(this.undefinedError);
             }

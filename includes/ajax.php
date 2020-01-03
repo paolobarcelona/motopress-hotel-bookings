@@ -643,7 +643,8 @@ class Ajax {
 
         wp_send_json_success(array(
             'id'            => $response->id,
-            'client_secret' => $response->client_secret
+			'client_secret' => $response->client_secret,
+			'stripe_account' => $response->stripe_connect_account_id
         ));
     }
 

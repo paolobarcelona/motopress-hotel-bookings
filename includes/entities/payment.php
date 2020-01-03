@@ -68,6 +68,12 @@ class Payment {
 	 *
 	 * @var string
 	 */
+	private $collectedFeeId;
+
+	/**
+	 *
+	 * @var string
+	 */
 	private $email;
 
 	/**
@@ -198,6 +204,14 @@ class Payment {
 
 	/**
 	 *
+	 * @return string
+	 */
+	function getCollectedFeeID(){
+		return $this->collectedFeeId;
+	}
+
+	/**
+	 *
 	 * @param int $id
 	 */
 	public function setId( $id ){
@@ -218,6 +232,14 @@ class Payment {
 	 */
 	public function setTransactionId( $id ){
 		$this->transactionId = $id;
+	}
+
+	/**
+	 *
+	 * @param string $id
+	 */
+	public function setCollectedFeeId( $id ){
+		$this->collectedFeeId = $id;
 	}
 
 	/**

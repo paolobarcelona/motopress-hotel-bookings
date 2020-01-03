@@ -40,7 +40,7 @@ class PublicScriptManager extends ScriptManager {
 
 		wp_register_script( 'mphb-vendor-braintree-client-sdk', 'https://js.braintreegateway.com/js/braintree-2.31.0.min.js', null, '2.31.0', true );
 
-		wp_register_script( 'mphb', $this->scriptUrl( 'assets/js/public/mphb.min.js' ), $this->scriptDependencies, MPHB()->getVersion(), true );
+		wp_register_script( 'mphb', $this->scriptUrl( 'assets/js/public/mphb.js' ), $this->scriptDependencies, MPHB()->getVersion(), true );
 	}
 
 	protected function registerStyles(){

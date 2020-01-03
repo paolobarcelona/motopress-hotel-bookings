@@ -45,6 +45,11 @@ class StripeAPI6
      * @var float
      */    
     private $commissionRate;    
+
+    /**
+     * @var string
+     */
+    private const PAYMENT_METHOD_CARD = 'card';
     
     /**
      * StripeAPI6 constructor.
@@ -189,7 +194,13 @@ class StripeAPI6
 
     public function setApp()
     {
-        Stripe::setAppInfo(MPHB()->getName(), MPHB()->getVersion(), MPHB()->getPluginStoreUri(), self::PARTNER_ID);
+        Stripe::setAppInfo(
+            MPHB()->getName(), 
+            MPHB()->getVersion(), 
+            MPHB()->getPluginStoreUri(), 
+            self::PARTNER_ID
+        );
+
         return $this;
     }
 
@@ -209,39 +220,25 @@ class StripeAPI6
         Stripe::setApiVersion(self::API_VERSION);
 
         try {
-            $amountWithoutFee = $amount - $this->getProcessingFeeBasedOnAmount($amount);
-
-            $transferGroup = $this->generateRandomString();
-            
-            $requestArgs = array(
-                'amount'               => $this->convertToSmallestUnit($amount, $currency),
-                'currency'             => \strtolower($currency),
-                'payment_method_types' => array('card'),
-                'transfer_group' => $transferGroup
-            );
+            $requestArgs = [
+                'amount' => (int)$this->convertToSmallestUnit($amount, $currency),
+                'application_fee_amount' => (int)$this->convertToSmallestUnit(
+                    $this->getCommissionAmount($amount),
+                    $currency
+                ),
+                'currency' => \strtolower($currency),
+                'payment_method_types' => [self::PAYMENT_METHOD_CARD]
+            ];
 
             if (!empty($description)) {
                 $requestArgs['description'] = $description;
             }
 
             // See details in https://stripe.com/docs/api/payment_intents/create
-            $paymentIntent = PaymentIntent::create($requestArgs);
-            
-            $this->createTransfer([
-                'amount' => $this->convertToSmallestUnit(
-                    $this->getTransferAmount($amountWithoutFee),
-                    $currency
-                ),
-                'currency' => \strtolower($currency),
-                'destination' => $this->stripeConnectAccountId,
-                'metadata' => [
-                    'payment_intent_id' => $paymentIntent->id,
-                    'total_amount' => $paymentIntent->amount,
-                    'customer' => $paymentIntent->customer,
-                    'payment_description' => $paymentIntent->description
-                ],
-                'transfer_group' => $transferGroup
-            ]);
+            $paymentIntent = PaymentIntent::create(
+                $requestArgs, 
+                ['stripe_account' => (string)$this->stripeConnectAccountId]
+            );
 
             return $paymentIntent;
         } catch (\Exception $e) {
@@ -249,9 +246,9 @@ class StripeAPI6
         }
     }
 
-    public function retrievePaymentIntent($paymentIntentId)
+    public function retrievePaymentIntent($paymentIntentId, ?string $secretKey = null)
     {
-        Stripe::setApiKey($this->secretKey);
+        Stripe::setApiKey($secretKey ?? $this->secretKey);
         Stripe::setApiVersion(self::API_VERSION);
 
         return PaymentIntent::retrieve($paymentIntentId);
@@ -284,13 +281,13 @@ class StripeAPI6
     }
 
     /**
-     * Calculate transfer amount.
+     * Calculate commission amount.
      *
      * @param float $amount
      * 
      * @return float $commission
      */
-    private function getTransferAmount (float $amount): float
+    private function getCommissionAmount (float $amount): float
     {
         $commissionRate = $this->commissionRate;
 

@@ -82,7 +82,7 @@ class StripeGatewayCustom extends Gateway
      * @var string
      */
     protected $stripeConnectAccountId;
-
+    
     /** 
      * @var string[] "card", "ideal", "sepa_debit" etc. 
      */
@@ -115,6 +115,7 @@ class StripeGatewayCustom extends Gateway
     protected $paymentFields = array(
         'payment_method'    => 'card',
         'payment_intent_id' => '',
+        'payment_intent_status' => '',
         'source_id'         => '',
         'redirect_url'      => ''
     );
@@ -184,7 +185,7 @@ class StripeGatewayCustom extends Gateway
 
         $this->adminTitle     = __('Stripe', 'motopress-hotel-booking');
         $this->publicKey      = $this->getOption('public_key');
-        $this->secretKey      = $this->getOption('secret_key');
+        $this->secretKey      = $this->getOption('secret_key');       
         $this->endpointSecret = $this->getOption('endpoint_secret');
         $this->stripeConnectAccountId = $this->getOption('stripe_connect_account_id');
         $this->paymentMethods = $this->getOption('payment_methods');
@@ -287,13 +288,13 @@ class StripeGatewayCustom extends Gateway
         $groupFields = array(
             Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_public_key", array(
                 'type'           => 'text',
-                'label'          => __('Public Key', 'motopress-hotel-booking'),
+                'label'          => __('Platform Public Key', 'motopress-hotel-booking'),
                 'default'        => $this->getDefaultOption('public_key'),
 				'description'    => '<a href="https://support.stripe.com/questions/locate-api-keys" target="_blank">Find API Keys</a>',
             )),
             Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_secret_key", array(
                 'type'           => 'text',
-                'label'          => __('Secret Key', 'motopress-hotel-booking'),
+                'label'          => __('Platform Secret Key', 'motopress-hotel-booking'),
                 'default'        => $this->getDefaultOption('secret_key')
             )),
             Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_endpoint_secret", array(
@@ -354,6 +355,10 @@ class StripeGatewayCustom extends Gateway
                 'type'     => 'hidden',
                 'required' => false
             ),
+            'mphb_stripe_payment_intent_status' => array(
+                'type'     => 'hidden',
+                'required' => false
+            ),
             'mphb_stripe_source_id' => array(
                 'type'     => 'hidden',
                 'required' => false
@@ -372,7 +377,15 @@ class StripeGatewayCustom extends Gateway
         $isParsed = parent::parsePaymentFields($input, $errors);
 
         if ($isParsed) {
-            foreach (array('payment_method', 'payment_intent_id', 'source_id', 'redirect_url') as $param) {
+            $messageParameters = [
+                'payment_method',
+                'payment_intent_id',
+                'payment_intent_status',
+                'source_id', 
+                'redirect_url'
+            ];
+
+            foreach ($messageParameters as $param) {
                 $field = 'mphb_stripe_' . $param;
 
                 if (isset($this->postedPaymentFields[$field])) {
@@ -393,6 +406,7 @@ class StripeGatewayCustom extends Gateway
     {
         $paymentMethod   = $this->paymentFields['payment_method'];
         $paymentIntentId = $this->paymentFields['payment_intent_id'];
+        $paymentIntentStatus   = $this->paymentFields['payment_intent_status'];
         $sourceId        = $this->paymentFields['source_id'];
         $redirectUrl     = $this->paymentFields['redirect_url'];
 
@@ -424,7 +438,7 @@ class StripeGatewayCustom extends Gateway
         update_post_meta($payment->getId(), '_mphb_payment_type', $paymentMethod);
 
         if ($paymentMethod == 'card') {
-            $this->processCardPayment($payment, $paymentIntentId);
+            $this->processCardPayment($payment, $paymentIntentId, (string)$paymentIntentStatus);
         } else {
             $this->processSourcePayment($payment, $sourceId, $redirectUrl);
         }
@@ -433,17 +447,18 @@ class StripeGatewayCustom extends Gateway
     /**
      * @param \MPHB\Entities\Payment $payment
      * @param string $paymentIntentId
+     * @param string $paymentIntentStatus
      */
-    public function processCardPayment(\MPHB\Entities\Payment $payment, $paymentIntentId)
-    {
+    public function processCardPayment(
+        \MPHB\Entities\Payment $payment,
+        $paymentIntentId, 
+        string $paymentIntentStatus
+    ) {
         update_post_meta($payment->getId(), '_mphb_transaction_id', $paymentIntentId);
 
         $payment->setTransactionId($paymentIntentId);
 
         try {
-            $paymentIntent = $this->api->setApp()->retrievePaymentIntent($paymentIntentId);
-            $intentStatus = $paymentIntent->status;
-
             /*
              * https://stripe.com/docs/payments/intents#intent-statuses
              *
@@ -451,13 +466,10 @@ class StripeGatewayCustom extends Gateway
              * "succeeded" and "processing". "canceled" and other will not pass
              * checks from stripe-gateway.js.
              */
-            if ($intentStatus == 'succeeded') {
+            if ($paymentIntentStatus == 'succeeded') {
                 // translators: %s - Stripe PaymentIntent ID
                 $payment->addLog(sprintf(__('Payment for PaymentIntent %s succeeded.', 'motopress-hotel-booking'), $paymentIntentId));
                 $this->paymentCompleted($payment);
-
-                /** @var null|\MPHB\Entities\Booking $booking */
-                $booking = MPHB()->getBookingRepository()->findById($payment->getBookingId());
             } else { // "processing"
                 // translators: %s - Stripe PaymentIntent ID
                 $payment->addLog(sprintf(__('Payment for PaymentIntent %s is processing.', 'motopress-hotel-booking'), $paymentIntentId));
@@ -686,6 +698,7 @@ class StripeGatewayCustom extends Gateway
 
         $data = array(
             'publicKey'      => $this->publicKey,
+            'stripeAccount' => $this->stripeConnectAccountId,
             'locale'         => $this->locale,
             'currency'       => MPHB()->settings()->currency()->getCurrencyCode(),
             'successUrl'     => $redirectUrl,
