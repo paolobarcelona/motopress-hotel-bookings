@@ -1,5 +1,9 @@
 <?php
 
+use MPHB\Payments\Gateways\StripeGatewayCustom;
+use Stripe\Stripe;
+use Stripe\OAuth as StripeOAuth;
+
 /**
  * Get template part.
  *
@@ -870,4 +874,83 @@ function mphb_get_polyfill_for($function)
     switch ($function) {
         case 'mb_convert_encoding': require_once MPHB()->getPluginPath('includes/polyfills/mbstring.php'); break;
     }
+}
+
+add_action('parse_request', 'authorizeStripeConnect');
+
+function authorizeStripeConnect() {
+	global $wp;
+
+	if($wp->request == 'authorize-stripe-connect') {
+
+		$code = $_REQUEST['code'] ?? null;
+
+		if ($code === null) {
+			global $wp_query;
+
+			$wp_query->set_404();
+			status_header( 404 );
+			get_template_part( 404 );
+			exit();
+		}
+
+		$message = '';
+
+		try {
+			// Set your secret key: remember to change this to your live secret key in production
+			// See your keys here: https://dashboard.stripe.com/account/apikeys
+			Stripe::setApiKey((new StripeGatewayCustom())->getSecretKey());
+
+			$response = StripeOAuth::token([
+				'grant_type' => 'authorization_code',
+				'code' => $code,
+			]);
+
+			$message = \sprintf('Connection success for %s.', $response->stripe_user_id);
+		} catch (Exception $e) {
+			$message = $e->getMessage();
+		}
+		
+		// @TODO: redirect if successful, and output message.
+		exit();
+   }
+}
+
+// register shortcode
+add_shortcode('stripe_connect_onboarding_button', 'stripeConnectButton');
+
+function stripeConnectButton($atts, $content=null) { 
+	$stripeConnectUrl = 'https://connect.stripe.com/express/oauth/authorize';
+
+	$atts = shortcode_atts(array(
+        'text' => null,
+        'class'  => null,
+	), $atts, 'stripe_connect_onboarding_button');
+
+	$platformClientId = (new StripeGatewayCustom())->getPlatformClientId();
+
+	$platformClientIdParameter = \sprintf('client_id=%s', $platformClientId);
+	
+	$redirectUri = \sprintf('redirect_uri=%s/authorize-stripe-connect',site_url());
+
+	$fullUrl = \sprintf(
+		'%s?%s&%s&%s&%s',
+		$stripeConnectUrl,
+		'response_type=code',
+		$platformClientIdParameter,
+		$redirectUri,
+		'scope=read_write'
+	);
+
+	ob_start();
+	?>
+
+	<a target="_blank" href="<?php echo $fullUrl; ?>" class="button button-primary <?php echo $atts['class'] ?? ''; ?>">
+		<i class="fa fa-cc-stripe"></i> <?php echo $atts['text'] ?? 'Connect to Stripe'; ?>
+	</a>
+
+	<?php
+	$html = ob_get_clean();
+	// Output needs to be return
+	return $html;
 }

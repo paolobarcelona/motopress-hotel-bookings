@@ -73,6 +73,11 @@ class StripeGatewayCustom extends Gateway
      */
     protected $secretKey = '';
 
+    /**
+     * @var string
+     */
+    protected $platformClientId;
+
     /** 
      * @var string 
      */
@@ -145,11 +150,6 @@ class StripeGatewayCustom extends Gateway
         }
     }
 
-    protected function initId()
-    {
-        return 'stripe';
-    }
-
     /**
      * @param bool $show
      * @param string $gatewayId
@@ -164,63 +164,6 @@ class StripeGatewayCustom extends Gateway
         return $show;
     }
 
-    protected function setupWebhooks()
-    {
-        $args = array(
-            'gatewayId'       => $this->getId(),
-            'sandbox'         => $this->isSandbox,
-            'secret_key'      => $this->secretKey,
-            'endpoint_secret' => $this->endpointSecret,
-            'stripe_connect_account_id' => $this->stripeConnectAccountId,       
-            'commission_type' => $this->commissionType,
-            'commission_rate' => $this->commissionRate
-        );
-
-        $this->webhookListener = new Stripe\WebhookListener($args);
-    }
-
-    protected function setupProperties()
-    {
-        parent::setupProperties();
-
-        $this->adminTitle     = __('Stripe', 'motopress-hotel-booking');
-        $this->publicKey      = $this->getOption('public_key');
-        $this->secretKey      = $this->getOption('secret_key');       
-        $this->endpointSecret = $this->getOption('endpoint_secret');
-        $this->stripeConnectAccountId = $this->getOption('stripe_connect_account_id');
-        $this->paymentMethods = $this->getOption('payment_methods');
-        $this->locale         = $this->getOption('locale');
-        $this->commissionRate = $this->getOption('commission_rate');
-        $this->commissionType = $this->getOption('commission_type');
-
-        if (empty($this->commssionType) === true) {
-            $this->commssionType = self::COMMISSION_TYPE_PERCENTAGE;
-        }
-
-        if (empty($this->commissionRate) === true) {
-            $this->commissionRate = self::COMMISSION_DEFAULT_RATE;
-        }
-
-        // Add "card" to payment methods
-        if (!is_array($this->paymentMethods)) {
-            $this->paymentMethods = array('card');
-        } else if (!in_array('card', $this->paymentMethods)) {
-            $this->paymentMethods = array_merge(array('card'), $this->paymentMethods);
-        }
-
-        // Filter unallowed methods
-        if (MPHB()->settings()->currency()->getCurrencyCode() == 'EUR') {
-            $this->allowedMethods = $this->paymentMethods;
-        } else {
-            $this->allowedMethods = array('card');
-        }
-
-        if ($this->isSandbox) {
-            $this->description .= ' ' . sprintf(__('Use the card number %1$s with CVC %2$s, a valid expiration date and random 5-digit ZIP-code to test a payment.', 'motopress-hotel-booking'), '4000 0000 0000 0077', '123');
-            $this->description = trim($this->description);
-        }
-    }
-
     public function enqueueScripts()
     {
         if (mphb_is_checkout_page()) {
@@ -228,24 +171,20 @@ class StripeGatewayCustom extends Gateway
         }
     }
 
-    protected function initDefaultOptions()
+    /**
+     * @return string
+     */
+    public function getPlatformClientId(): string
     {
-        $defaults = array(
-            'title'           => __('Pay by Card (Stripe)', 'motopress-hotel-booking'),
-            'description'     => __('Pay with your credit card via Stripe.', 'motopress-hotel-booking'),
-            'enabled'         => false,
-            'is_sandbox'      => false,
-            'public_key'      => '',
-            'secret_key'      => '',
-            'endpoint_secret' => '',
-            'stripe_connect_account_id' => '',
-            'commission_type' => self::COMMISSION_TYPE_PERCENTAGE,
-            'commission_rate' => self::COMMISSION_DEFAULT_RATE,
-            'payment_methods' => array(),
-            'locale'          => 'auto'
-        );
+        return (string)$this->platformClientId;
+    }
 
-        return array_merge(parent::initDefaultOptions(), $defaults);
+    /**
+     * @return string
+     */
+    public function getSecretKey(): string
+    {
+        return (string)$this->secretKey;
     }
 
     public function registerOptionsFields(&$subtab)
@@ -296,6 +235,11 @@ class StripeGatewayCustom extends Gateway
                 'type'           => 'text',
                 'label'          => __('Platform Secret Key', 'motopress-hotel-booking'),
                 'default'        => $this->getDefaultOption('secret_key')
+            )),
+            Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_platform_client_id", array(
+                'type'           => 'text',
+                'label'          => __('Platform Client ID', 'motopress-hotel-booking'),
+                'default'        => $this->getDefaultOption('platform_client_id')
             )),
             Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_endpoint_secret", array(
                 'type'           => 'text',
@@ -736,5 +680,88 @@ class StripeGatewayCustom extends Gateway
     public function getApi()
     {
         return $this->api;
+    }
+
+    protected function initId()
+    {
+        return 'stripe';
+    }
+
+    protected function setupWebhooks()
+    {
+        $args = array(
+            'gatewayId'       => $this->getId(),
+            'sandbox'         => $this->isSandbox,
+            'secret_key'      => $this->secretKey,
+            'endpoint_secret' => $this->endpointSecret,
+            'stripe_connect_account_id' => $this->stripeConnectAccountId,       
+            'commission_type' => $this->commissionType,
+            'commission_rate' => $this->commissionRate
+        );
+
+        $this->webhookListener = new Stripe\WebhookListener($args);
+    }
+
+    protected function setupProperties()
+    {
+        parent::setupProperties();
+
+        $this->adminTitle     = __('Stripe', 'motopress-hotel-booking');
+        $this->publicKey      = $this->getOption('public_key');
+        $this->secretKey      = $this->getOption('secret_key');       
+        $this->endpointSecret = $this->getOption('endpoint_secret');
+        $this->stripeConnectAccountId = $this->getOption('stripe_connect_account_id');
+        $this->paymentMethods = $this->getOption('payment_methods');
+        $this->locale         = $this->getOption('locale');
+        $this->commissionRate = $this->getOption('commission_rate');
+        $this->commissionType = $this->getOption('commission_type');
+        $this->platformClientId = $this->getOption('platform_client_id');
+
+        if (empty($this->commssionType) === true) {
+            $this->commssionType = self::COMMISSION_TYPE_PERCENTAGE;
+        }
+
+        if (empty($this->commissionRate) === true) {
+            $this->commissionRate = self::COMMISSION_DEFAULT_RATE;
+        }
+
+        // Add "card" to payment methods
+        if (!is_array($this->paymentMethods)) {
+            $this->paymentMethods = array('card');
+        } else if (!in_array('card', $this->paymentMethods)) {
+            $this->paymentMethods = array_merge(array('card'), $this->paymentMethods);
+        }
+
+        // Filter unallowed methods
+        if (MPHB()->settings()->currency()->getCurrencyCode() == 'EUR') {
+            $this->allowedMethods = $this->paymentMethods;
+        } else {
+            $this->allowedMethods = array('card');
+        }
+
+        if ($this->isSandbox) {
+            $this->description .= ' ' . sprintf(__('Use the card number %1$s with CVC %2$s, a valid expiration date and random 5-digit ZIP-code to test a payment.', 'motopress-hotel-booking'), '4000 0000 0000 0077', '123');
+            $this->description = trim($this->description);
+        }
+    }
+
+    protected function initDefaultOptions()
+    {
+        $defaults = array(
+            'title'           => __('Pay by Card (Stripe)', 'motopress-hotel-booking'),
+            'description'     => __('Pay with your credit card via Stripe.', 'motopress-hotel-booking'),
+            'enabled'         => false,
+            'is_sandbox'      => false,
+            'public_key'      => '',
+            'secret_key'      => '',
+            'endpoint_secret' => '',
+            'stripe_connect_account_id' => '',
+            'commission_type' => self::COMMISSION_TYPE_PERCENTAGE,
+            'commission_rate' => self::COMMISSION_DEFAULT_RATE,
+            'payment_methods' => array(),
+            'locale'          => 'auto'
+        );
+
+        return array_merge(parent::initDefaultOptions(), $defaults);
     }
 }
