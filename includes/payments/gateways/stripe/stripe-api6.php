@@ -208,10 +208,16 @@ class StripeAPI6
      * @param float $amount
      * @param string $description
      * @param string $currency
+     * @param null|mixed[] $customer
+     *
      * @return \Stripe\PaymentIntent|\WP_Error
      */
-    public function createPaymentIntent($amount, $description = '', $currency = null)
-    {
+    public function createPaymentIntent(
+        float $amount,
+        ?string $description = '', 
+        ?string $currency = null, 
+        ?array $customer = null
+    ) {
         if (is_null($currency)) {
             $currency = MPHB()->settings()->currency()->getCurrencyCode();
         }
@@ -227,10 +233,14 @@ class StripeAPI6
                     $currency
                 ),
                 'currency' => \strtolower($currency),
-                'payment_method_types' => [self::PAYMENT_METHOD_CARD]
+                'payment_method_types' => [self::PAYMENT_METHOD_CARD],
+                'metadata' => \array_merge(
+                    ['Hotel Name' => get_bloginfo('name')],
+                    $customer
+                )
             ];
 
-            if (!empty($description)) {
+            if (empty($description) === false) {
                 $requestArgs['description'] = $description;
             }
 
@@ -246,10 +256,14 @@ class StripeAPI6
         }
     }
 
-    public function retrievePaymentIntent($paymentIntentId, ?string $secretKey = null)
+    public function retrievePaymentIntent($paymentIntentId, ?string $clientId = null)
     {
-        Stripe::setApiKey($secretKey ?? $this->secretKey);
+        Stripe::setApiKey($this->secretKey);
         Stripe::setApiVersion(self::API_VERSION);
+
+        if ($clientId !== null) {
+            Stripe::setClientId($clientId);
+        }
 
         return PaymentIntent::retrieve($paymentIntentId);
     }

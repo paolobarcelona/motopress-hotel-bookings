@@ -619,7 +619,8 @@ class Ajax {
         }
 
         $amount      = floatval($input['amount']);
-        $description = isset($input['description']) ? mphb_clean($input['description']) : '';
+		$description = isset($input['description']) ? mphb_clean($input['description']) : '';
+		$customer = $input['customer'] ?? [];
 
         $currency  = MPHB()->settings()->currency()->getCurrencyCode();
         $stripeApi = MPHB()->gatewayManager()->getGateway('stripe')->getApi();
@@ -633,7 +634,7 @@ class Ajax {
             ));
         }
 
-        $response = $stripeApi->setApp()->createPaymentIntent($amount, $description, $currency);
+        $response = $stripeApi->setApp()->createPaymentIntent($amount, $description, $currency, $customer);
 
         if (is_wp_error($response)) {
             wp_send_json_error(array(

@@ -1977,7 +1977,7 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
             this.setCustomer(customer);
 
             if (this.payments.currentPayment == 'card') {
-                data = this.createPaymentIntent(amount)
+                data = this.createPaymentIntent(amount, customer)
                     .then(this.createCardPayment.bind(this))
                     .then(this.handleStripeErrors.bind(this))
 					.then(this.completeCardPayment.bind(this));
@@ -2003,7 +2003,7 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
             this.customer = customer;
         },
 
-        createPaymentIntent: function (amount) {
+        createPaymentIntent: function (amount, customer) {
             var self = this;
 
             return new Promise(function (resolve, reject) {
@@ -2012,7 +2012,8 @@ MPHB.StripeGateway = MPHB.Gateway.extend(
                     'create_stripe_payment_intent',
                     {
                         amount: amount,
-                        description: self.paymentDescription
+						description: self.paymentDescription,
+						customer: customer
                     },
                     {
                         success: function (response) {
