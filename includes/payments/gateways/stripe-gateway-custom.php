@@ -241,6 +241,18 @@ class StripeGatewayCustom extends Gateway
                 'label'          => __('Platform Client ID', 'motopress-hotel-booking'),
                 'default'        => $this->getDefaultOption('platform_client_id')
             )),
+			Fields\FieldFactory::create("mphb_stripe_authorization_success_page", array(
+				'type'			 => 'page-select',
+				'label'			 => __( 'Authorization Success Page', 'motopress-hotel-booking' ),
+				'description'	 => __( 'Success page once Stripe Express Authorization is complete.', 'authorization_success_page' ),
+				'default'		 => ''
+			) ),
+			Fields\FieldFactory::create("mphb_stripe_authorization_failure_page", array(
+				'type'			 => 'page-select',
+				'label'			 => __( 'Authorization Failure Page', 'motopress-hotel-booking' ),
+				'description'	 => __( 'Success page once Stripe Express Authorization failed.', 'authorization_failure_page' ),
+				'default'		 => ''
+			) ),
             Fields\FieldFactory::create("mphb_payment_gateway_{$this->id}_endpoint_secret", array(
                 'type'           => 'text',
                 'label'          => __('Webhook Secret', 'motopress-hotel-booking'),

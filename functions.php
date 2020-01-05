@@ -882,7 +882,6 @@ function authorizeStripeConnect() {
 	global $wp;
 
 	if($wp->request == 'authorize-stripe-connect') {
-
 		$code = $_REQUEST['code'] ?? null;
 
 		if ($code === null) {
@@ -907,8 +906,24 @@ function authorizeStripeConnect() {
 			]);
 
 			$message = \sprintf('Connection success for %s.', $response->stripe_user_id);
+
+			$successPage = MPHB()->settings()->pages()->getAuthorizationSuccessPage();
+
+			if (empty($successPage) === false) {
+				wp_redirect($successPage);
+				exit;
+			}
+
+			echo 'Authorisation was successful.';
 		} catch (Exception $e) {
 			$message = $e->getMessage();
+
+			$failurePage = MPHB()->settings()->pages()->getAuthorizationFailurePage();
+
+			if (empty($failurePage) === false) {
+				wp_redirect($failurePage);
+				exit;
+			}			
 		}
 		
 		// @TODO: redirect if successful, and output message.
@@ -934,12 +949,11 @@ function stripeConnectButton($atts, $content=null) {
 	$redirectUri = \sprintf('redirect_uri=%s/authorize-stripe-connect',site_url());
 
 	$fullUrl = \sprintf(
-		'%s?%s&%s&%s&%s',
+		'%s?%s&%s&%s&',
 		$stripeConnectUrl,
-		'response_type=code',
-		$platformClientIdParameter,
 		$redirectUri,
-		'scope=read_write'
+		'response_type=code',
+		$platformClientIdParameter		
 	);
 
 	ob_start();

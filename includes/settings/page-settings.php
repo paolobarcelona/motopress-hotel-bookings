@@ -4,6 +4,50 @@ namespace MPHB\Settings;
 
 class PageSettings {
 
+    /**
+	 * @param null|string $message
+	 *
+	 * @return string
+     */
+    public function getAuthorizationFailurePage(?string $message = null): string
+    {
+		$url = (string)$this->getUrl($this->getAuthorizationFailurePageId());
+		
+		$additionalArgs = [];
+
+		if ( $message !== null ) {
+			$additionalArgs['message'] = \urlencode($message);
+		}
+
+		$url = add_query_arg( $additionalArgs, $url );
+		
+		return $url;
+    }
+
+    /**
+	 * @return string
+     */
+    public function getAuthorizationSuccessPage(): string
+    {
+        return (string)$this->getUrl($this->getAuthorizationSuccessPageId());
+    }
+
+	/**
+	 * @return int
+	 */
+	public function getAuthorizationFailurePageId(): int
+	{
+		return (int)$this->getPageId( 'stripe_authorization_failure' );
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getAuthorizationSuccessPageId(): int
+	{
+		return (int)$this->getPageId( 'stripe_authorization_success' );
+	}
+
 	/**
 	 * Retrieve checkout page id.
 	 * The Checkout Page ID or 0 if checkout page not setted.
