@@ -17,16 +17,20 @@
 	- `/wp-content/plugins/motopress-hotel-booking-custom/includes/payments/gateways/stripe-gateway-custom.php`
 	- `/wp-content/plugins/motopress-hotel-booking-custom/includes/payments/gateways/stripe/stripe-api6.php`
 
-## For custom plugin:
-
--`/wp-content/plugins/motopress-hotel-booking-custom/includes/payments/gateways/gateway-manager.php`
-	-- `processPayment()`
-	-- `processCardPayment()`
-- `/wp-content/plugins/motopress-hotel-booking-custom/includes/payments/gateways/stripe-gateway-custom.php`
-	-- `chargePayment()`
-
 ## In stripe:
-- Go to Connect > Accounts > Create a connect account
-- Supply the necessary fields
-- set payout schedule to manual
-- get the ID, and store in wordpress
+- Go to Connect > Accounts
+- Get the ID of the connected Hotel Account
+
+## In Wordpress:
+- Go to Accommodation > Payment Gateways > Stripe
+- Store the ID from stripe to `Stripe Connect Account ID`
+
+## To show the Stripe Connect Stripe Express button, simply use the shortcode below:
+- [stripe_connect_onboarding_button]
+	- has optional parameters:
+		- `text`
+		- `class`
+		
+sample usage:
+
+[stripe_connect_onboarding_button text="Click me to connect to stripe" class="my-css-class"]
