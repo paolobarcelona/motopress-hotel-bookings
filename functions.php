@@ -935,7 +935,7 @@ function authorizeStripeConnect() {
 add_shortcode('stripe_connect_onboarding_button', 'stripeConnectButton');
 
 function stripeConnectButton($atts, $content=null) { 
-	$stripeConnectUrl = 'https://connect.stripe.com/express/oauth/authorize';
+	$stripeConnectUrl = 'https://connect.stripe.com/oauth/authorize';
 
 	$atts = shortcode_atts(array(
         'text' => null,
@@ -946,12 +946,9 @@ function stripeConnectButton($atts, $content=null) {
 
 	$platformClientIdParameter = \sprintf('client_id=%s', $platformClientId);
 	
-	$redirectUri = \sprintf('redirect_uri=%s/authorize-stripe-connect',site_url());
-
 	$fullUrl = \sprintf(
-		'%s?%s&%s&%s&',
+		'%s?scope=read_write&%s&%s&',
 		$stripeConnectUrl,
-		$redirectUri,
 		'response_type=code',
 		$platformClientIdParameter		
 	);
