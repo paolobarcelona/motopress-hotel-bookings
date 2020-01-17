@@ -947,7 +947,7 @@ function stripeConnectButton($atts, $content=null) {
 	$platformClientIdParameter = \sprintf('client_id=%s', $platformClientId);
 	
 	$fullUrl = \sprintf(
-		'%s?scope=read_write&%s&%s&',
+		'%s?scope=read_write&%s&%s',
 		$stripeConnectUrl,
 		'response_type=code',
 		$platformClientIdParameter		
